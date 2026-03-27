@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InstantSales | Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <script type="importmap">
+        {
+            "imports": {
+                "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
+                "firebase/auth": "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js",
+                "firebase/firestore": "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js"
+            }
+        }
+    </script>
+    <script src="https://www.paypal.com/sdk/js?client-id=AQtahCMfSr6KdUXc40wnKyRE7NgpUd_vV1alXBGugVLMtshTZUPmLMM-ZokZ6CgO4rccm3wvuap4_sUV&currency=USD"></script>
+</head>
+<body>
+    <div class="app">
+        <header>
+            <div class="logo">InstantSales</div>
+            <div class="auth-section">
+                <div id="user-info">
+                    <span id="user-name"></span>
+                    <button id="logout-btn" class="btn btn-secondary">Sair</button>
+                </div>
+            </div>
+        </header>
+
+        <main class="dashboard">
+            <div class="credits-section">
+                <h2>Seus créditos</h2>
+                <div class="credits-card">
+                    <span class="credits-amount" id="credits-amount">0</span>
+                    <p>créditos disponíveis</p>
+                    <small>Cada página consome de 1 a 5 créditos conforme a complexidade.</small>
+                </div>
+                <button id="show-buy-credits" class="btn btn-primary">Comprar mais créditos</button>
+            </div>
+
+            <div id="buy-credits-modal" class="modal" style="display: none;">
+                <div class="modal-content">
+                    <span class="close">&times;</span>
+                    <h3>Adquirir créditos</h3>
+                    <div class="pricing-grid">
+                        <div class="card" data-plan="19.90" data-credits="20">
+                            <h3>Básico</h3>
+                            <div class="price">$19,90</div>
+                            <p>20 créditos</p>
+                            <div class="paypal-button" id="modal-paypal-19.90"></div>
+                        </div>
+                        <div class="card" data-plan="49.90" data-credits="60">
+                            <h3>Profissional</h3>
+                            <div class="price">$49,90</div>
+                            <p>60 créditos</p>
+                            <div class="paypal-button" id="modal-paypal-49.90"></div>
+                        </div>
+                        <div class="card" data-plan="199.00" data-credits="300">
+                            <h3>Empresarial</h3>
+                            <div class="price">$199,00</div>
+                            <p>300 créditos</p>
+                            <div class="paypal-button" id="modal-paypal-199.00"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="generator-section">
+                <h2>Criar nova landing page</h2>
+                <form id="generator-form">
+                    <div class="form-group">
+                        <label>Nome do produto/serviço</label>
+                        <input type="text" id="product-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Público-alvo</label>
+                        <input type="text" id="target-audience" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Oferta principal</label>
+                        <textarea id="offer" rows="3" required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Cor principal (opcional)</label>
+                        <input type="text" id="color" placeholder="Ex: #ff6b6b, azul">
+                    </div>
+                    <button type="submit" id="generate-btn" class="btn btn-primary btn-large">Gerar página (1-5 créditos)</button>
+                    <div id="cost-preview" class="cost-preview"></div>
+                </form>
+                <div id="generation-output" class="output-box" style="display: none;">
+                    <h3>Resultado:</h3>
+                    <div id="generated-html"></div>
+                    <button id="copy-html" class="btn btn-secondary">Copiar HTML</button>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>UMINO NAGI - I WAS HERE 🍀</p>
+        </footer>
+    </div>
+
+    <script type="module" src="main.js"></script>
+</body>
+</html>

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InstantSales | Crie landing pages com IA</title>
+    <link rel="stylesheet" href="style.css">
+    <script type="importmap">
+        {
+            "imports": {
+                "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
+                "firebase/auth": "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js",
+                "firebase/firestore": "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js"
+            }
+        }
+    </script>
+    <script src="https://www.paypal.com/sdk/js?client-id=AQtahCMfSr6KdUXc40wnKyRE7NgpUd_vV1alXBGugVLMtshTZUPmLMM-ZokZ6CgO4rccm3wvuap4_sUV&currency=USD"></script>
+</head>
+<body>
+    <div class="app">
+        <header>
+            <div class="logo">InstantSales</div>
+            <div class="auth-section">
+                <button id="login-btn" class="btn btn-primary">Login com Google</button>
+                <div id="user-info" style="display: none;">
+                    <span id="user-name"></span>
+                    <button id="logout-btn" class="btn btn-secondary">Sair</button>
+                </div>
+            </div>
+        </header>
+
+        <section class="hero">
+            <div class="hero-content">
+                <h1>Crie páginas de venda que <span class="highlight">convertem</span> em segundos</h1>
+                <p>Descreva seu produto e a IA gera uma landing page profissional, pronta para hospedar. Sem complicações, sem código.</p>
+                <div class="hero-buttons">
+                    <button id="hero-login-btn" class="btn btn-primary btn-large">Começar agora</button>
+                </div>
+            </div>
+            <div class="hero-animation">
+                <div class="floating-card">🚀</div>
+                <div class="floating-card">⚡</div>
+                <div class="floating-card">🎯</div>
+            </div>
+        </section>
+
+        <section class="pricing">
+            <h2>Escolha o pacote de créditos</h2>
+            <p class="subtitle">Cada página gerada consome créditos conforme a complexidade (1 a 5 créditos).</p>
+            <div class="pricing-grid">
+                <div class="card" data-plan="19.90" data-credits="20">
+                    <h3>Básico</h3>
+                    <div class="price">$19,90</div>
+                    <p>20 créditos</p>
+                    <ul>
+                        <li>Gera até 20 páginas simples</li>
+                        <li>Suporte por e-mail</li>
+                    </ul>
+                    <div class="paypal-button" id="paypal-19.90"></div>
+                </div>
+                <div class="card" data-plan="49.90" data-credits="60">
+                    <h3>Profissional</h3>
+                    <div class="price">$49,90</div>
+                    <p>60 créditos</p>
+                    <ul>
+                        <li>Gera até 60 páginas</li>
+                        <li>Suporte prioritário</li>
+                        <li>Exportação em HTML</li>
+                    </ul>
+                    <div class="paypal-button" id="paypal-49.90"></div>
+                </div>
+                <div class="card" data-plan="199.00" data-credits="300">
+                    <h3>Empresarial</h3>
+                    <div class="price">$199,00</div>
+                    <p>300 créditos</p>
+                    <ul>
+                        <li>Gera até 300 páginas</li>
+                        <li>Suporte 24/7</li>
+                        <li>Personalização avançada</li>
+                    </ul>
+                    <div class="paypal-button" id="paypal-199.00"></div>
+                </div>
+            </div>
+        </section>
+
+        <footer>
+            <p>UMINO NAGI - I WAS HERE 🍀</p>
+        </footer>
+    </div>
+
+    <script type="module" src="main.js"></script>
+</body>
+</html>
