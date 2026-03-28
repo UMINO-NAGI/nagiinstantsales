@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>InstantSales | Dashboard</title>
+    <title>NAGI AUTO PAGES AI | Dashboard</title>
     <link rel="stylesheet" href="style.css">
     <script type="importmap">
         {
@@ -19,7 +19,7 @@
 <body>
     <div class="app">
         <header>
-            <div class="logo">InstantSales</div>
+            <div class="logo">NAGI AUTO PAGES AI</div>
             <div class="auth-section">
                 <div id="user-info">
                     <span id="user-name"></span>
@@ -44,17 +44,17 @@
                     <span class="close">&times;</span>
                     <h3>Adquirir créditos</h3>
                     <div class="pricing-grid">
-                        <div class="card" data-plan="19.90" data-credits="20">
+                        <div class="card" data-plan="19.99" data-credits="20">
                             <h3>Básico</h3>
-                            <div class="price">$19,90</div>
+                            <div class="price">$19,99</div>
                             <p>20 créditos</p>
-                            <div class="paypal-button" id="modal-paypal-19.90"></div>
+                            <div class="paypal-button" id="modal-paypal-19.99"></div>
                         </div>
-                        <div class="card" data-plan="49.90" data-credits="60">
+                        <div class="card" data-plan="49.99" data-credits="60">
                             <h3>Profissional</h3>
-                            <div class="price">$49,90</div>
+                            <div class="price">$49,99</div>
                             <p>60 créditos</p>
-                            <div class="paypal-button" id="modal-paypal-49.90"></div>
+                            <div class="paypal-button" id="modal-paypal-49.99"></div>
                         </div>
                         <div class="card" data-plan="199.00" data-credits="300">
                             <h3>Empresarial</h3>
@@ -74,16 +74,21 @@
                         <input type="text" id="product-name" required>
                     </div>
                     <div class="form-group">
+                        <label>Descrição detalhada</label>
+                        <textarea id="product-description" rows="4" required></textarea>
+                    </div>
+                    <div class="form-group">
                         <label>Público-alvo</label>
                         <input type="text" id="target-audience" required>
                     </div>
                     <div class="form-group">
-                        <label>Oferta principal</label>
-                        <textarea id="offer" rows="3" required></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Cor principal (opcional)</label>
-                        <input type="text" id="color" placeholder="Ex: #ff6b6b, azul">
+                        <label>Estilo da página</label>
+                        <select id="page-style">
+                            <option value="modern">Moderno & Profissional</option>
+                            <option value="bold">Bold & Impactante</option>
+                            <option value="elegant">Elegante & Premium</option>
+                            <option value="clean">Clean & Minimalista</option>
+                        </select>
                     </div>
                     <button type="submit" id="generate-btn" class="btn btn-primary btn-large">Gerar página (1-5 créditos)</button>
                     <div id="cost-preview" class="cost-preview"></div>
@@ -92,15 +97,22 @@
                     <h3>Resultado:</h3>
                     <div id="generated-html"></div>
                     <button id="copy-html" class="btn btn-secondary">Copiar HTML</button>
+                    <button id="download-html" class="btn btn-secondary">Baixar HTML</button>
                 </div>
+            </div>
+
+            <div class="history-section">
+                <h3><i class="fas fa-history"></i> Suas páginas</h3>
+                <div id="pages-list" class="pages-list"></div>
             </div>
         </main>
 
         <footer>
-            <p>UMINO NAGI - I WAS HERE 🍀</p>
+            <p>© 2025 NAGI TECHNOLOGY S.A. - Todos os direitos reservados</p>
+            <p class="signature">UMINO NAGI - I WAS HERE🍀</p>
         </footer>
     </div>
 
-    <script type="module" src="main.js"></script>
+    <script type="module" src="app.js"></script>
 </body>
 </html>
