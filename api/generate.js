@@ -16,12 +16,13 @@ export default async function handler(req, res) {
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    const { product, audience, offer, color, userUID, cost } = req.body;
-    if (!product || !audience || !offer || !userUID || !cost) {
+    const { product, description, audience, style, userUID, cost } = req.body;
+    if (!product || !description || !audience || !userUID || !cost) {
         return res.status(400).json({ error: 'Campos obrigatórios ausentes' });
     }
 
-    const userRef = db.collection('instantSalesUsers').doc(userUID);
+    // Verificar créditos
+    const userRef = db.collection('nagi_users').doc(userUID);
     const userSnap = await userRef.get();
     if (!userSnap.exists) {
         return res.status(404).json({ error: 'Usuário não encontrado' });
@@ -31,14 +32,15 @@ export default async function handler(req, res) {
         return res.status(402).json({ error: `Créditos insuficientes. Necessário ${cost}, você tem ${credits}.` });
     }
 
-    const systemPrompt = `You are a professional landing page designer. Generate a complete, responsive HTML/CSS landing page based on the following inputs. Return ONLY the HTML code (including <style> inside <head> or inline). Do not include any explanations, markdown, or extra text. Use modern design, glassmorphism if appropriate, and make it visually appealing. The page should have a clear header, hero section, benefits, call-to-action, and footer. Adapt to the product details provided. Ensure the page is ready to host.`;
-
-    const userPrompt = `Product: ${product}\nTarget Audience: ${audience}\nMain Offer: ${offer}\nPreferred color (optional): ${color || 'blue'}`;
-
     const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
     if (!DEEPSEEK_API_KEY) {
         return res.status(500).json({ error: 'Chave da API não configurada' });
     }
+
+    // Prompt de sistema para a IA
+    const systemPrompt = `Você é um especialista em criação de landing pages de alta conversão. Gere uma página HTML/CSS completa, responsiva, com base nas informações fornecidas. Inclua: cabeçalho, seção hero, benefícios, depoimentos, FAQ, call-to-action, rodapé. Use o estilo "${style}" (moderno, elegante, etc.). Retorne APENAS o código HTML, sem explicações.`;
+
+    const userPrompt = `Produto: ${product}\nDescrição: ${description}\nPúblico-alvo: ${audience}`;
 
     try {
         const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
@@ -65,6 +67,19 @@ export default async function handler(req, res) {
 
         let html = data.choices[0].message.content.trim();
         html = html.replace(/```html|```/g, '').trim();
+
+        // Salvar página no Firestore
+        const pagesRef = db.collection('nagi_pages');
+        const pageData = {
+            userId: userUID,
+            name: product,
+            description: description,
+            audience: audience,
+            style: style,
+            html: html,
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+        };
+        await pagesRef.add(pageData);
 
         // Subtrair créditos
         await userRef.update({

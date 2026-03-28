@@ -27,6 +27,7 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: 'Credenciais PayPal não configuradas' });
     }
 
+    // Obter token PayPal
     const auth = Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_CLIENT_SECRET}`).toString('base64');
     let accessToken;
     try {
@@ -48,6 +49,7 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: 'Autenticação PayPal falhou' });
     }
 
+    // Capturar ordem
     try {
         const captureResponse = await fetch(`https://api-m.paypal.com/v2/checkout/orders/${orderID}/capture`, {
             method: 'POST',
@@ -66,9 +68,20 @@ export default async function handler(req, res) {
             throw new Error(`Valor incorreto: esperado ${planID}, recebido ${capturedAmount}`);
         }
 
-        const userRef = db.collection('instantSalesUsers').doc(userUID);
+        // Adicionar créditos
+        const userRef = db.collection('nagi_users').doc(userUID);
         await userRef.update({
             credits: admin.firestore.FieldValue.increment(parseInt(credits))
+        });
+
+        // Registrar pagamento (opcional)
+        const paymentsRef = db.collection('nagi_payments');
+        await paymentsRef.add({
+            userId: userUID,
+            amount: planID,
+            credits: parseInt(credits),
+            orderId: orderID,
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
         res.status(200).json({ success: true });
