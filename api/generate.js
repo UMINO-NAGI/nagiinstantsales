@@ -1,94 +1,75 @@
-// api/generate.js
-import admin from 'firebase-admin';
+const admin = require('firebase-admin');
 
 if (!admin.apps.length) {
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-    });
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+    }),
+  });
 }
 const db = admin.firestore();
 
-export default async function handler(req, res) {
-    res.setHeader('Content-Type', 'application/json');
+module.exports = async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).end();
+  const { prompt, userId } = req.body;
+  if (!prompt || !userId) return res.status(400).json({ error: 'Dados incompletos' });
 
-    if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Method not allowed' });
-    }
+  const userRef = db.collection('users').doc(userId);
+  const userSnap = await userRef.get();
+  if (!userSnap.exists) return res.status(404).json({ error: 'Usuário não encontrado' });
+  let credits = userSnap.data().credits || 0;
 
-    const { product, description, audience, style, userUID, cost } = req.body;
-    if (!product || !description || !audience || !userUID || !cost) {
-        return res.status(400).json({ error: 'Campos obrigatórios ausentes' });
-    }
+  const deepseekKey = process.env.DEEPSEEK_API_KEY;
+  if (!deepseekKey) return res.status(500).json({ error: 'Chave DeepSeek não configurada' });
 
-    // Verificar créditos
-    const userRef = db.collection('nagi_users').doc(userUID);
-    const userSnap = await userRef.get();
-    if (!userSnap.exists) {
-        return res.status(404).json({ error: 'Usuário não encontrado' });
-    }
-    const credits = userSnap.data().credits || 0;
-    if (credits < cost) {
-        return res.status(402).json({ error: `Créditos insuficientes. Necessário ${cost}, você tem ${credits}.` });
-    }
+  const systemPrompt = `Você é um expert em criar páginas de vendas de alta conversão.
+  Com base na descrição do produto, gere HTML/CSS moderno, responsivo, com botão de compra, depoimentos fictícios, layout atrativo.
+  Responda APENAS um JSON válido: {"cost": número inteiro (1 a 10 baseado na complexidade), "html": "código completo da página"}.`;
 
-    const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
-    if (!DEEPSEEK_API_KEY) {
-        return res.status(500).json({ error: 'Chave da API não configurada' });
-    }
+  const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${deepseekKey}`,
+    },
+    body: JSON.stringify({
+      model: 'deepseek-chat',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `Produto: ${prompt}` },
+      ],
+      temperature: 0.7,
+    }),
+  });
 
-    // Prompt de sistema para a IA
-    const systemPrompt = `Você é um especialista em criação de landing pages de alta conversão. Gere uma página HTML/CSS completa, responsiva, com base nas informações fornecidas. Inclua: cabeçalho, seção hero, benefícios, depoimentos, FAQ, call-to-action, rodapé. Use o estilo "${style}" (moderno, elegante, etc.). Retorne APENAS o código HTML, sem explicações.`;
+  const data = await response.json();
+  let cost = 3;
+  let generatedHTML = '';
+  try {
+    const aiJson = JSON.parse(data.choices[0].message.content);
+    cost = Math.min(10, Math.max(1, aiJson.cost));
+    generatedHTML = aiJson.html;
+  } catch (e) {
+    return res.status(500).json({ error: 'Resposta da IA inválida' });
+  }
 
-    const userPrompt = `Produto: ${product}\nDescrição: ${description}\nPúblico-alvo: ${audience}`;
+  if (credits < cost) {
+    return res.status(400).json({ error: `Créditos insuficientes. Necessário ${cost}, você tem ${credits}.` });
+  }
 
-    try {
-        const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
-            },
-            body: JSON.stringify({
-                model: 'deepseek-chat',
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: userPrompt }
-                ],
-                temperature: 0.7,
-                max_tokens: 4000
-            })
-        });
+  const newCredits = credits - cost;
+  const historyEntry = {
+    prompt,
+    generatedHTML,
+    cost,
+    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+  };
+  await userRef.update({
+    credits: newCredits,
+    history: admin.firestore.FieldValue.arrayUnion(historyEntry),
+  });
 
-        const data = await response.json();
-        if (!response.ok) {
-            throw new Error(data.error?.message || 'Erro na API DeepSeek');
-        }
-
-        let html = data.choices[0].message.content.trim();
-        html = html.replace(/```html|```/g, '').trim();
-
-        // Salvar página no Firestore
-        const pagesRef = db.collection('nagi_pages');
-        const pageData = {
-            userId: userUID,
-            name: product,
-            description: description,
-            audience: audience,
-            style: style,
-            html: html,
-            createdAt: admin.firestore.FieldValue.serverTimestamp()
-        };
-        await pagesRef.add(pageData);
-
-        // Subtrair créditos
-        await userRef.update({
-            credits: admin.firestore.FieldValue.increment(-cost)
-        });
-
-        res.status(200).json({ success: true, html });
-    } catch (error) {
-        console.error('Erro na geração:', error);
-        res.status(500).json({ success: false, error: error.message });
-    }
-}
+  res.status(200).json({ success: true, html: generatedHTML, cost, remainingCredits: newCredits });
+};
