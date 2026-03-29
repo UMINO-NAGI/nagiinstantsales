@@ -1,4 +1,4 @@
-// Firebase Config (do arquivo)
+// ==================== CONFIGURAÇÕES ====================
 const firebaseConfig = {
   apiKey: "AIzaSyBUHvHE3J3SVUD2W7ETu3QYQaQMkz3yQ7g",
   authDomain: "nagi-instant-sales.firebaseapp.com",
@@ -14,251 +14,216 @@ const auth = firebase.auth();
 const db = firebase.firestore();
 
 // Elementos DOM
-const landingView = document.getElementById('landing-view');
-const dashboardView = document.getElementById('dashboard-view');
+const landing = document.getElementById('landing-view');
+const dashboard = document.getElementById('dashboard-view');
 const googleBtn = document.getElementById('google-login-btn');
 const logoutBtn = document.getElementById('logout-btn');
 const userNameSpan = document.getElementById('user-name');
-const userAvatarImg = document.getElementById('user-avatar');
+const userAvatar = document.getElementById('user-avatar');
 const userCreditsSpan = document.getElementById('user-credits');
 const generateBtn = document.getElementById('generate-btn');
 const productDesc = document.getElementById('product-description');
-const generationStatus = document.getElementById('generation-status');
+const genStatus = document.getElementById('generation-status');
 const previewIframe = document.getElementById('preview-iframe');
 const generatedCodePre = document.getElementById('generated-code');
-const copyCodeBtn = document.getElementById('copy-code-btn');
-const historyListDiv = document.getElementById('history-list');
+const copyBtn = document.getElementById('copy-code-btn');
+const historyDiv = document.getElementById('history-list');
 
 let currentUser = null;
 let unsubscribeCredits = null;
 
-// Helper com logs
-async function callFunction(functionName, data) {
-  console.log(`Chamando /api/${functionName}`, data);
-  try {
-    const res = await fetch(`/api/${functionName}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    });
-    if (!res.ok) {
-      const errorText = await res.text();
-      throw new Error(`HTTP ${res.status}: ${errorText}`);
-    }
-    const json = await res.json();
-    console.log(`Resposta de ${functionName}:`, json);
-    return json;
-  } catch (err) {
-    console.error(`Erro em ${functionName}:`, err);
-    throw err;
-  }
+// Helper para mostrar mensagens temporárias
+function showToast(msg, isError = false) {
+  const toast = document.createElement('div');
+  toast.className = `fixed bottom-5 right-5 z-50 px-4 py-2 rounded-lg shadow-lg text-white ${isError ? 'bg-red-600' : 'bg-green-600'} transition-opacity`;
+  toast.innerText = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 4000);
 }
 
-// Garantir documento do usuário (mas não impede o dashboard)
+// Chamada para serverless functions com tratamento detalhado
+async function callFunction(fnName, data) {
+  const res = await fetch(`/api/${fnName}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`HTTP ${res.status}: ${errorText.substring(0, 100)}`);
+  }
+  return res.json();
+}
+
+// Garantir documento do usuário
 async function ensureUserDocument(uid, email, displayName) {
   try {
     await callFunction('ensureUser', { uid, email, displayName });
   } catch (err) {
-    console.warn('ensureUser falhou, mas vamos continuar:', err.message);
-    // Se falhar, o documento pode já existir ou será criado na primeira geração/compr
+    console.warn('ensureUser falhou, mas continuamos:', err.message);
   }
 }
 
-function showDashboard() {
-  landingView.style.display = 'none';
-  dashboardView.style.display = 'block';
-}
-
-function showLanding() {
-  landingView.style.display = 'block';
-  dashboardView.style.display = 'none';
-}
-
-// Listener de créditos
+// Listener de créditos em tempo real
 function subscribeToCredits(uid) {
   if (unsubscribeCredits) unsubscribeCredits();
   const userRef = db.collection('users').doc(uid);
-  unsubscribeCredits = userRef.onSnapshot((docSnap) => {
-    if (docSnap.exists) {
-      const credits = docSnap.data().credits || 0;
-      userCreditsSpan.innerText = `💰 ${credits} créditos`;
-    } else {
-      userCreditsSpan.innerText = `💰 0 créditos`;
-      console.warn('Documento do usuário não encontrado no Firestore');
-    }
-  }, (error) => {
-    console.error('Erro no snapshot de créditos:', error);
-  });
+  unsubscribeCredits = userRef.onSnapshot((doc) => {
+    if (doc.exists) userCreditsSpan.innerText = doc.data().credits || 0;
+    else userCreditsSpan.innerText = '0';
+  }, (err) => console.error('Erro no snapshot:', err));
 }
 
+// Carregar histórico
 async function loadHistory(uid) {
   try {
-    const result = await callFunction('getHistory', { uid });
-    const history = result.history || [];
-    historyListDiv.innerHTML = '';
-    if (history.length === 0) {
-      historyListDiv.innerHTML = '<p>Nenhuma página gerada ainda.</p>';
+    const { history } = await callFunction('getHistory', { uid });
+    historyDiv.innerHTML = '';
+    if (!history.length) {
+      historyDiv.innerHTML = '<p class="text-gray-400">Nenhuma página gerada ainda.</p>';
       return;
     }
-    history.forEach((item) => {
+    history.slice().reverse().forEach(item => {
       const div = document.createElement('div');
-      div.className = 'history-item';
+      div.className = 'bg-gray-800 p-3 rounded-xl cursor-pointer hover:bg-gray-700 transition';
       div.innerHTML = `
-        <strong>${new Date(item.timestamp).toLocaleString()}</strong><br>
-        <small>🎯 ${item.prompt.substring(0, 80)}...</small><br>
-        <span style="color:#facc15">⚡ custo: ${item.cost} créditos</span>
+        <div class="flex justify-between text-sm">
+          <span><i class="far fa-calendar-alt"></i> ${new Date(item.timestamp).toLocaleString()}</span>
+          <span class="text-yellow-400">⚡ ${item.cost} créditos</span>
+        </div>
+        <p class="truncate mt-1">${item.prompt.substring(0, 100)}</p>
       `;
-      div.addEventListener('click', () => {
+      div.onclick = () => {
         previewIframe.srcdoc = item.generatedHTML;
         generatedCodePre.innerText = item.generatedHTML;
-        document.querySelector('.tab-btn[data-tab="preview"]').click();
-      });
-      historyListDiv.appendChild(div);
+        document.querySelector('[data-tab="preview"]').click();
+      };
+      historyDiv.appendChild(div);
     });
   } catch (err) {
-    console.error('Erro ao carregar histórico', err);
-    historyListDiv.innerHTML = '<p>Erro ao carregar histórico. Tente recarregar.</p>';
+    historyDiv.innerHTML = '<p class="text-red-400">Erro ao carregar histórico.</p>';
   }
 }
 
-// Inicializar PayPal (igual antes)
-async function initPayPal(creditsAmount, priceValue) {
+// PayPal – carregar SDK e renderizar botões
+async function initPayPal(credits, amount) {
   try {
-    const clientIdResponse = await callFunction('getPaypalClientId', {});
-    const clientId = clientIdResponse.clientId;
-    if (!clientId) throw new Error('Client ID não retornado');
-    if (!document.querySelector('#paypal-script')) {
+    const { clientId } = await callFunction('getPaypalClientId', {});
+    if (!clientId) throw new Error('Client ID não recebido');
+    if (!window.paypal) {
       const script = document.createElement('script');
-      script.id = 'paypal-script';
       script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&currency=BRL`;
-      script.onload = () => renderPayPalButtons(creditsAmount, priceValue);
+      script.onload = () => renderPayPalButtons(credits, amount);
       document.body.appendChild(script);
     } else {
-      renderPayPalButtons(creditsAmount, priceValue);
+      renderPayPalButtons(credits, amount);
     }
   } catch (err) {
-    generationStatus.innerText = 'Erro ao carregar PayPal: ' + err.message;
+    showToast('Erro ao carregar PayPal: ' + err.message, true);
   }
 }
 
-function renderPayPalButtons(creditsAmount, priceValue) {
+function renderPayPalButtons(credits, amount) {
   const container = document.getElementById('paypal-buttons-container');
   container.innerHTML = '';
   window.paypal.Buttons({
     createOrder: async () => {
-      const response = await callFunction('paypal-create-order', { amount: priceValue });
-      return response.orderID;
+      const { orderID } = await callFunction('paypal-create-order', { amount });
+      return orderID;
     },
     onApprove: async (data) => {
-      const captureResult = await callFunction('paypal-capture-order', {
-        orderID: data.orderID,
-        userId: currentUser.uid,
-        creditsToAdd: creditsAmount
-      });
-      if (captureResult.success) {
-        alert(`✅ Compra concluída! ${creditsAmount} créditos adicionados.`);
-      } else {
-        alert('Erro ao capturar pagamento.');
-      }
+      const result = await callFunction('paypal-capture-order', { orderID: data.orderID, userId: currentUser.uid, creditsToAdd: credits });
+      if (result.success) showToast(`✅ ${credits} créditos adicionados!`);
+      else showToast('Erro na captura do pagamento', true);
     },
     onError: (err) => {
       console.error(err);
-      alert('Erro no PayPal. Tente novamente.');
+      showToast('Erro no PayPal. Tente novamente.', true);
     }
   }).render('#paypal-buttons-container');
 }
 
 function setupCreditPackages() {
   const packages = [
-    { price: '19.99', credits: 20 },
-    { price: '49.99', credits: 60 },
-    { price: '199.00', credits: 250 }
+    { credits: 20, amount: '19.99' },
+    { credits: 60, amount: '49.99' },
+    { credits: 250, amount: '199.00' }
   ];
   const container = document.getElementById('paypal-buttons-container');
   container.innerHTML = '';
   packages.forEach(pkg => {
     const btn = document.createElement('button');
-    btn.className = 'btn-primary';
-    btn.style.margin = '0.5rem';
-    btn.innerText = `Comprar ${pkg.credits} créditos - R$ ${pkg.price}`;
-    btn.onclick = () => initPayPal(pkg.credits, pkg.price);
+    btn.className = 'bg-blue-600 hover:bg-blue-700 w-full py-2 rounded-lg mb-2 font-semibold';
+    btn.innerText = `Comprar ${pkg.credits} créditos - R$ ${pkg.amount}`;
+    btn.onclick = () => initPayPal(pkg.credits, pkg.amount);
     container.appendChild(btn);
   });
 }
 
-// Geração (igual antes)
+// Geração de página
 generateBtn.onclick = async () => {
   if (!currentUser) return;
   const prompt = productDesc.value.trim();
-  if (!prompt) {
-    generationStatus.innerText = 'Descreva o produto primeiro.';
-    return;
-  }
-  generationStatus.innerText = '🔄 Verificando créditos e gerando página...';
+  if (!prompt) return showToast('Descreva o produto primeiro.', true);
+  genStatus.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Gerando página...';
   generateBtn.disabled = true;
   try {
     const result = await callFunction('generate', { prompt, userId: currentUser.uid });
     if (result.success) {
       previewIframe.srcdoc = result.html;
       generatedCodePre.innerText = result.html;
-      generationStatus.innerText = `✅ Página gerada! Custo: ${result.cost} créditos. Saldo restante: ${result.remainingCredits}`;
+      genStatus.innerHTML = `✅ Página gerada! Custo: ${result.cost} créditos. Saldo: ${result.remainingCredits}`;
       loadHistory(currentUser.uid);
       productDesc.value = '';
+      showToast(`Página criada! Custo: ${result.cost} créditos`);
     } else {
-      generationStatus.innerText = `❌ ${result.error}`;
-      if (result.error.includes('créditos')) alert('Créditos insuficientes. Adquira mais.');
+      genStatus.innerHTML = `❌ ${result.error}`;
+      if (result.error.includes('créditos')) showToast('Créditos insuficientes!', true);
     }
   } catch (err) {
-    generationStatus.innerText = `Erro: ${err.message}`;
+    genStatus.innerHTML = `❌ Erro: ${err.message}`;
+    showToast('Falha na geração. Veja console.', true);
   } finally {
     generateBtn.disabled = false;
   }
 };
 
-copyCodeBtn.onclick = () => {
+// Copiar código
+copyBtn.onclick = () => {
   const code = generatedCodePre.innerText;
-  navigator.clipboard.writeText(code);
-  alert('Código copiado!');
+  if (code) navigator.clipboard.writeText(code).then(() => showToast('Código copiado!'));
 };
 
 // Tabs
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     const tab = btn.dataset.tab;
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
-    document.getElementById(`${tab}-container`).classList.add('active');
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('bg-blue-600', 'text-white'));
+    btn.classList.add('bg-blue-600', 'text-white');
+    document.querySelectorAll('.tab-content').forEach(tc => tc.classList.add('hidden'));
+    document.getElementById(`${tab}-container`).classList.remove('hidden');
   });
 });
 
-// Auth state - parte mais crítica
+// Auth
 auth.onAuthStateChanged(async (user) => {
-  console.log('Auth state changed:', user ? `Logado como ${user.email}` : 'Deslogado');
   if (user) {
     currentUser = user;
-    // Tenta criar/garantir documento (não bloqueia)
     await ensureUserDocument(user.uid, user.email, user.displayName);
-    // Inscreve para ouvir créditos
     subscribeToCredits(user.uid);
-    // Preenche dados do usuário
     userNameSpan.innerText = user.displayName || user.email;
-    userAvatarImg.src = user.photoURL || 'https://via.placeholder.com/48';
-    // Mostra dashboard
-    showDashboard();
-    // Carrega histórico
+    userAvatar.src = user.photoURL || 'https://ui-avatars.com/api/?background=3b82f6&color=fff&name=' + encodeURIComponent(user.displayName || 'User');
+    landing.classList.add('hidden');
+    dashboard.classList.remove('hidden');
     loadHistory(user.uid);
-    // Configura botões de compra
     setupCreditPackages();
   } else {
     currentUser = null;
     if (unsubscribeCredits) unsubscribeCredits();
-    showLanding();
+    landing.classList.remove('hidden');
+    dashboard.classList.add('hidden');
   }
 });
 
-googleBtn.onclick = () => {
-  const provider = new firebase.auth.GoogleAuthProvider();
-  auth.signInWithPopup(provider).catch(err => console.error('Erro login:', err));
-};
+googleBtn.onclick = () => auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
 logoutBtn.onclick = () => auth.signOut();
