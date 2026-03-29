@@ -1,4 +1,4 @@
-// Firebase Config (do arquivo integrações nagisales.txt)
+// Firebase Config (do arquivo)
 const firebaseConfig = {
   apiKey: "AIzaSyBUHvHE3J3SVUD2W7ETu3QYQaQMkz3yQ7g",
   authDomain: "nagi-instant-sales.firebaseapp.com",
@@ -32,26 +32,49 @@ const historyListDiv = document.getElementById('history-list');
 let currentUser = null;
 let unsubscribeCredits = null;
 
-// Helper: chamadas para as Serverless Functions
+// Helper com logs
 async function callFunction(functionName, data) {
-  const res = await fetch(`/api/${functionName}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
-  });
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(errorText || `Erro na função ${functionName}`);
+  console.log(`Chamando /api/${functionName}`, data);
+  try {
+    const res = await fetch(`/api/${functionName}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`HTTP ${res.status}: ${errorText}`);
+    }
+    const json = await res.json();
+    console.log(`Resposta de ${functionName}:`, json);
+    return json;
+  } catch (err) {
+    console.error(`Erro em ${functionName}:`, err);
+    throw err;
   }
-  return res.json();
 }
 
-// Garantir documento do usuário
+// Garantir documento do usuário (mas não impede o dashboard)
 async function ensureUserDocument(uid, email, displayName) {
-  await callFunction('ensureUser', { uid, email, displayName });
+  try {
+    await callFunction('ensureUser', { uid, email, displayName });
+  } catch (err) {
+    console.warn('ensureUser falhou, mas vamos continuar:', err.message);
+    // Se falhar, o documento pode já existir ou será criado na primeira geração/compr
+  }
 }
 
-// Listener de créditos em tempo real
+function showDashboard() {
+  landingView.style.display = 'none';
+  dashboardView.style.display = 'block';
+}
+
+function showLanding() {
+  landingView.style.display = 'block';
+  dashboardView.style.display = 'none';
+}
+
+// Listener de créditos
 function subscribeToCredits(uid) {
   if (unsubscribeCredits) unsubscribeCredits();
   const userRef = db.collection('users').doc(uid);
@@ -61,11 +84,13 @@ function subscribeToCredits(uid) {
       userCreditsSpan.innerText = `💰 ${credits} créditos`;
     } else {
       userCreditsSpan.innerText = `💰 0 créditos`;
+      console.warn('Documento do usuário não encontrado no Firestore');
     }
+  }, (error) => {
+    console.error('Erro no snapshot de créditos:', error);
   });
 }
 
-// Carregar histórico
 async function loadHistory(uid) {
   try {
     const result = await callFunction('getHistory', { uid });
@@ -92,26 +117,27 @@ async function loadHistory(uid) {
     });
   } catch (err) {
     console.error('Erro ao carregar histórico', err);
+    historyListDiv.innerHTML = '<p>Erro ao carregar histórico. Tente recarregar.</p>';
   }
 }
 
-// Inicializar PayPal (com client_id do backend)
+// Inicializar PayPal (igual antes)
 async function initPayPal(creditsAmount, priceValue) {
-  const clientIdResponse = await callFunction('getPaypalClientId', {});
-  const clientId = clientIdResponse.clientId;
-  if (!clientId) {
-    generationStatus.innerText = 'Erro: PayPal não configurado.';
-    return;
-  }
-  // Carregar SDK dinamicamente
-  if (!document.querySelector('#paypal-script')) {
-    const script = document.createElement('script');
-    script.id = 'paypal-script';
-    script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&currency=BRL`;
-    script.onload = () => renderPayPalButtons(creditsAmount, priceValue);
-    document.body.appendChild(script);
-  } else {
-    renderPayPalButtons(creditsAmount, priceValue);
+  try {
+    const clientIdResponse = await callFunction('getPaypalClientId', {});
+    const clientId = clientIdResponse.clientId;
+    if (!clientId) throw new Error('Client ID não retornado');
+    if (!document.querySelector('#paypal-script')) {
+      const script = document.createElement('script');
+      script.id = 'paypal-script';
+      script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&currency=BRL`;
+      script.onload = () => renderPayPalButtons(creditsAmount, priceValue);
+      document.body.appendChild(script);
+    } else {
+      renderPayPalButtons(creditsAmount, priceValue);
+    }
+  } catch (err) {
+    generationStatus.innerText = 'Erro ao carregar PayPal: ' + err.message;
   }
 }
 
@@ -124,15 +150,15 @@ function renderPayPalButtons(creditsAmount, priceValue) {
       return response.orderID;
     },
     onApprove: async (data) => {
-      const captureResult = await callFunction('paypal-capture-order', { 
-        orderID: data.orderID, 
-        userId: currentUser.uid, 
-        creditsToAdd: creditsAmount 
+      const captureResult = await callFunction('paypal-capture-order', {
+        orderID: data.orderID,
+        userId: currentUser.uid,
+        creditsToAdd: creditsAmount
       });
       if (captureResult.success) {
         alert(`✅ Compra concluída! ${creditsAmount} créditos adicionados.`);
       } else {
-        alert('Erro ao capturar pagamento. Contate suporte.');
+        alert('Erro ao capturar pagamento.');
       }
     },
     onError: (err) => {
@@ -142,7 +168,6 @@ function renderPayPalButtons(creditsAmount, priceValue) {
   }).render('#paypal-buttons-container');
 }
 
-// Configurar pacotes de créditos
 function setupCreditPackages() {
   const packages = [
     { price: '19.99', credits: 20 },
@@ -161,7 +186,7 @@ function setupCreditPackages() {
   });
 }
 
-// Geração de página
+// Geração (igual antes)
 generateBtn.onclick = async () => {
   if (!currentUser) return;
   const prompt = productDesc.value.trim();
@@ -174,17 +199,14 @@ generateBtn.onclick = async () => {
   try {
     const result = await callFunction('generate', { prompt, userId: currentUser.uid });
     if (result.success) {
-      const { html, cost, remainingCredits } = result;
-      previewIframe.srcdoc = html;
-      generatedCodePre.innerText = html;
-      generationStatus.innerText = `✅ Página gerada! Custo: ${cost} créditos. Saldo restante: ${remainingCredits}`;
+      previewIframe.srcdoc = result.html;
+      generatedCodePre.innerText = result.html;
+      generationStatus.innerText = `✅ Página gerada! Custo: ${result.cost} créditos. Saldo restante: ${result.remainingCredits}`;
       loadHistory(currentUser.uid);
       productDesc.value = '';
     } else {
       generationStatus.innerText = `❌ ${result.error}`;
-      if (result.error.includes('créditos')) {
-        alert('Créditos insuficientes. Adquira mais.');
-      }
+      if (result.error.includes('créditos')) alert('Créditos insuficientes. Adquira mais.');
     }
   } catch (err) {
     generationStatus.innerText = `Erro: ${err.message}`;
@@ -210,28 +232,33 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
   });
 });
 
-// Auth state
+// Auth state - parte mais crítica
 auth.onAuthStateChanged(async (user) => {
+  console.log('Auth state changed:', user ? `Logado como ${user.email}` : 'Deslogado');
   if (user) {
     currentUser = user;
+    // Tenta criar/garantir documento (não bloqueia)
     await ensureUserDocument(user.uid, user.email, user.displayName);
+    // Inscreve para ouvir créditos
     subscribeToCredits(user.uid);
+    // Preenche dados do usuário
     userNameSpan.innerText = user.displayName || user.email;
     userAvatarImg.src = user.photoURL || 'https://via.placeholder.com/48';
-    landingView.style.display = 'none';
-    dashboardView.style.display = 'block';
+    // Mostra dashboard
+    showDashboard();
+    // Carrega histórico
     loadHistory(user.uid);
+    // Configura botões de compra
     setupCreditPackages();
   } else {
     currentUser = null;
     if (unsubscribeCredits) unsubscribeCredits();
-    landingView.style.display = 'block';
-    dashboardView.style.display = 'none';
+    showLanding();
   }
 });
 
 googleBtn.onclick = () => {
   const provider = new firebase.auth.GoogleAuthProvider();
-  auth.signInWithPopup(provider);
+  auth.signInWithPopup(provider).catch(err => console.error('Erro login:', err));
 };
 logoutBtn.onclick = () => auth.signOut();
